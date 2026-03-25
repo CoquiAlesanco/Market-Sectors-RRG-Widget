@@ -1,0 +1,879 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Relative Rotation Graph</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;600&family=Syne:wght@400;700;800&display=swap');
+
+  :root {
+    --bg:       #f0f4f8;
+    --bg2:      #ffffff;
+    --border:   #d0dae4;
+    --text:     #1a2a3a;
+    --dim:      #7a90a4;
+    --grid:     rgba(0,0,0,0.04);
+  }
+
+  * { margin:0; padding:0; box-sizing:border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'JetBrains Mono', monospace;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 24px 16px;
+  }
+
+  header {
+    width: 100%;
+    max-width: 1400px;
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-bottom: 20px;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 14px;
+  }
+
+  header h1 {
+    font-family: 'Syne', sans-serif;
+    font-weight: 800;
+    font-size: 1.3rem;
+    letter-spacing: 0.05em;
+    color: #0a1a2a;
+  }
+
+  header span {
+    font-size: 0.7rem;
+    color: var(--dim);
+    letter-spacing: 0.1em;
+  }
+
+  .controls {
+    width: 100%;
+    max-width: 1400px;
+    display: flex;
+    gap: 12px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+
+  .ctrl-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px 12px;
+  }
+
+  .ctrl-group label {
+    font-size: 0.65rem;
+    color: var(--dim);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .ctrl-group input[type=range] {
+    width: 90px;
+    accent-color: #1a6abf;
+  }
+
+  .ctrl-group span {
+    font-size: 0.85rem;
+    color: #1a6abf;
+    min-width: 24px;
+    text-align: center;
+    font-weight: 700;
+  }
+
+  .adj-btn {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    width: 24px;
+    height: 24px;
+    font-size: 1rem;
+    line-height: 1;
+    color: #1a6abf;
+    cursor: pointer;
+    font-weight: 700;
+    transition: background 0.15s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .adj-btn:hover { background: #d0e8ff; }
+
+  #refreshBtn {
+    background: #1a6abf;
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    padding: 8px 18px;
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    font-size: 0.8rem;
+    cursor: pointer;
+    letter-spacing: 0.05em;
+    transition: background 0.2s;
+  }
+  #refreshBtn:hover { background: #1558a0; }
+  #refreshBtn:disabled { background: #c0ccd8; color: #8a9aaa; cursor: not-allowed; }
+
+  #status {
+    font-size: 0.68rem;
+    color: var(--dim);
+    margin-left: 4px;
+  }
+
+  .chart-wrapper {
+    width: 100%;
+    max-width: 1400px;
+    display: flex;
+    gap: 16px;
+  }
+
+  .guide {
+    width: 210px;
+    flex-shrink: 0;
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .guide-title {
+    font-family: 'Syne', sans-serif;
+    font-weight: 800;
+    font-size: 0.7rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: #0a1a2a;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 10px;
+  }
+
+  .guide-section {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .guide-quad {
+    border-radius: 6px;
+    padding: 8px 10px;
+  }
+  .guide-quad.leading   { background: rgba(220,245,220,0.8); border-left: 3px solid #227722; }
+  .guide-quad.improving { background: rgba(220,235,250,0.8); border-left: 3px solid #2266aa; }
+  .guide-quad.weakening { background: rgba(255,248,200,0.8); border-left: 3px solid #aa8800; }
+  .guide-quad.lagging   { background: rgba(250,220,220,0.8); border-left: 3px solid #aa2222; }
+
+  .guide-quad-name {
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    font-size: 0.65rem;
+    letter-spacing: 0.08em;
+    margin-bottom: 3px;
+  }
+  .guide-quad.leading   .guide-quad-name { color: #227722; }
+  .guide-quad.improving .guide-quad-name { color: #2266aa; }
+  .guide-quad.weakening .guide-quad-name { color: #aa8800; }
+  .guide-quad.lagging   .guide-quad-name { color: #aa2222; }
+
+  .guide-quad-text {
+    font-size: 0.6rem;
+    color: #3a4a5a;
+    line-height: 1.5;
+  }
+
+  .guide-note {
+    font-size: 0.6rem;
+    color: var(--dim);
+    line-height: 1.6;
+    border-top: 1px solid var(--border);
+    padding-top: 10px;
+  }
+
+  .guide-note b {
+    color: var(--text);
+    font-weight: 600;
+  }
+
+  .guide-rotation {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    font-size: 0.6rem;
+    color: var(--dim);
+    background: var(--bg);
+    border-radius: 6px;
+    padding: 8px;
+  }
+
+  .guide-rotation svg {
+    opacity: 0.5;
+  }
+
+  #chartContainer {
+    flex: 1;
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  canvas {
+    display: block;
+  }
+
+  .legend {
+    width: 160px;
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .legend-btns {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 8px;
+  }
+
+  .legend-action-btn {
+    flex: 1;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 4px 6px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.6rem;
+    color: #1a6abf;
+    cursor: pointer;
+    font-weight: 600;
+    transition: background 0.15s;
+  }
+  .legend-action-btn:hover { background: #d0e8ff; }
+
+  .legend-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 0.65rem;
+    color: var(--dim);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 8px;
+  }
+
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 6px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+
+  .legend-item:hover { background: rgba(0,0,0,0.04); }
+  .legend-item.hidden { opacity: 0.3; }
+
+  .legend-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .legend-label {
+    font-size: 0.7rem;
+    color: var(--text);
+  }
+
+  .legend-sub {
+    font-size: 0.58rem;
+    color: var(--dim);
+  }
+
+  .quadrant-labels {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+  }
+
+  footer {
+    margin-top: 16px;
+    font-size: 0.6rem;
+    color: var(--dim);
+    text-align: center;
+    letter-spacing: 0.08em;
+  }
+
+  .tooltip {
+    position: fixed;
+    background: rgba(255,255,255,0.97);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 8px 12px;
+    font-size: 0.7rem;
+    color: var(--text);
+    pointer-events: none;
+    display: none;
+    z-index: 100;
+    line-height: 1.6;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>RELATIVE ROTATION GRAPH</h1>
+  <span>S&amp;P 500 SECTORS vs SPY · WEEKLY</span>
+</header>
+
+<div class="controls">
+  <div class="ctrl-group">
+    <label>Tail</label>
+    <button class="adj-btn" onclick="adjust('tailLen','tailVal',2,16,-1)">−</button>
+    <span id="tailVal">6</span>
+    <button class="adj-btn" onclick="adjust('tailLen','tailVal',2,16,+1)">+</button>
+    <input type="range" id="tailLen" min="2" max="16" value="6" style="display:none">
+  </div>
+  <div class="ctrl-group">
+    <label>RS Period</label>
+    <button class="adj-btn" onclick="adjust('rsPeriod','rsVal',1,26,-1)">−</button>
+    <span id="rsVal">10</span>
+    <button class="adj-btn" onclick="adjust('rsPeriod','rsVal',1,26,+1)">+</button>
+    <input type="range" id="rsPeriod" min="1" max="26" value="10" style="display:none">
+  </div>
+  <button id="refreshBtn" onclick="loadData()">⟳ Refresh data</button>
+  <span id="status">Loading...</span>
+</div>
+
+<div class="chart-wrapper">
+  <div class="guide">
+    <div class="guide-title">How to read</div>
+
+    <div class="guide-section">
+      <div class="guide-quad leading">
+        <div class="guide-quad-name">▲ LEADING</div>
+        <div class="guide-quad-text">Strong sector with positive momentum. Outperforming the market and accelerating. <b>Bullish signal.</b></div>
+      </div>
+      <div class="guide-quad improving">
+        <div class="guide-quad-name">↗ IMPROVING</div>
+        <div class="guide-quad-text">Weak sector but gaining momentum. Starting to recover vs the market. <b>Possible entry.</b></div>
+      </div>
+      <div class="guide-quad weakening">
+        <div class="guide-quad-name">↘ WEAKENING</div>
+        <div class="guide-quad-text">Strong sector but losing momentum. May be reaching its relative peak. <b>Watch for exit.</b></div>
+      </div>
+      <div class="guide-quad lagging">
+        <div class="guide-quad-name">▼ LAGGING</div>
+        <div class="guide-quad-text">Weak sector with negative momentum. Underperforming the market and declining. <b>Avoid.</b></div>
+      </div>
+    </div>
+
+    <div class="guide-rotation">
+      <svg width="36" height="36" viewBox="0 0 36 36" fill="none">
+        <path d="M18 6 C28 6 30 18 18 18 C6 18 8 30 18 30" stroke="#1a6abf" stroke-width="2" fill="none" marker-end="url(#arr)"/>
+        <defs><marker id="arr" markerWidth="6" markerHeight="6" refX="3" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#1a6abf"/></marker></defs>
+      </svg>
+      <span>Typical rotation follows a <b style="color:#1a2a3a">clockwise</b> path</span>
+    </div>
+
+    <div class="guide-note">
+      <b>Tail:</b> shows recent movement. The large dot is the current position.<br><br>
+      <b>X Axis:</b> relative strength vs SPY.<br><br>
+      <b>Y Axis:</b> rate of change (momentum).<br><br>
+      <b>Center (100,100):</b> represents market performance.
+    </div>
+  </div>
+
+  <div id="chartContainer">
+    <canvas id="rrg"></canvas>
+  </div>
+  <div class="legend">
+    <div class="legend-title">Sectors</div>
+    <div class="legend-btns">
+      <button class="legend-action-btn" onclick="selectAll()">All</button>
+      <button class="legend-action-btn" onclick="deselectAll()">None</button>
+    </div>
+    <div id="legendItems"></div>
+  </div>
+</div>
+
+<div class="tooltip" id="tooltip"></div>
+
+<footer>Data: Google Sheets · Update manually · Not financial advice</footer>
+
+<script>
+const SECTORS = [
+  { ticker: "XLE",  name: "Energy",           color: "#ff5050" },
+  { ticker: "XLB",  name: "Materials",         color: "#b0b8c0" },
+  { ticker: "XLI",  name: "Industrials",       color: "#64a0ff" },
+  { ticker: "XLY",  name: "Cons. Discret.",    color: "#ffc832" },
+  { ticker: "XLP",  name: "Cons. Staples",     color: "#50c850" },
+  { ticker: "XLV",  name: "Health Care",       color: "#32dcc8" },
+  { ticker: "XLF",  name: "Financials",        color: "#c864ff" },
+  { ticker: "XLC",  name: "Comm. Services",    color: "#ff8c32" },
+  { ticker: "XLU",  name: "Utilities",         color: "#9650c8" },
+  { ticker: "XLK",  name: "Technology",        color: "#00d4ff" },
+  { ticker: "XLRE", name: "Real Estate",       color: "#ff69b4" },
+  { ticker: "SMH",  name: "Semiconductors",    color: "#e8a020" },
+  { ticker: "IGV",  name: "Software",          color: "#222222" },
+  { ticker: "MAGS", name: "Magnificent 7",     color: "#8B4513" },
+];
+
+const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRs0JNA-PkggwDR04DtYfCh7HLOte-UzDjUKS_1qWLOsm3o0tWFKyatlppzlkYBpFyTHi2zHqJxGKpl/pub?gid=1253587861&single=true&output=csv";
+
+const hidden = new Set();
+let chartData = [];
+let animFrame = 0;
+let animating = false;
+
+// ── Controles ────────────────────────────────
+const tailSlider  = document.getElementById('tailLen');
+const rsSlider    = document.getElementById('rsPeriod');
+
+function adjust(sliderId, valId, min, max, delta) {
+  const slider = document.getElementById(sliderId);
+  const valEl  = document.getElementById(valId);
+  const newVal = Math.min(max, Math.max(min, parseInt(slider.value) + delta));
+  slider.value = newVal;
+  valEl.textContent = newVal;
+  if(sliderId === 'tailLen') draw();
+  else if(chartData.length) processAndDraw();
+}
+
+tailSlider.oninput = () => { document.getElementById('tailVal').textContent = tailSlider.value; draw(); };
+rsSlider.oninput  = () => { document.getElementById('rsVal').textContent  = rsSlider.value; if(chartData.length) processAndDraw(); };
+
+// ── Leyenda ──────────────────────────────────
+const legendDiv = document.getElementById('legendItems');
+SECTORS.forEach(s => {
+  const el = document.createElement('div');
+  el.className = 'legend-item';
+  el.id = 'leg_' + s.ticker;
+  el.innerHTML = `<div class="legend-dot" style="background:${s.color}"></div>
+    <div><div class="legend-label">${s.ticker}</div><div class="legend-sub">${s.name}</div></div>`;
+  el.onclick = () => {
+    if(hidden.has(s.ticker)) hidden.delete(s.ticker); else hidden.add(s.ticker);
+    el.classList.toggle('hidden');
+    draw();
+  };
+  legendDiv.appendChild(el);
+});
+
+function deselectAll() {
+  SECTORS.forEach(s => {
+    hidden.add(s.ticker);
+    document.getElementById('leg_' + s.ticker)?.classList.add('hidden');
+  });
+  draw();
+}
+
+function selectAll() {
+  SECTORS.forEach(s => {
+    hidden.delete(s.ticker);
+    document.getElementById('leg_' + s.ticker)?.classList.remove('hidden');
+  });
+  draw();
+}
+
+// ── Cargar datos desde Google Sheets CSV ──────
+async function loadData() {
+  const btn    = document.getElementById('refreshBtn');
+  const status = document.getElementById('status');
+  btn.disabled = true;
+  status.textContent = 'Loading data...';
+
+  try {
+    // Añadir timestamp para evitar caché
+    const url = CSV_URL + '&t=' + Date.now();
+    const res = await fetch(url);
+    if(!res.ok) throw new Error('Could not download the sheet (' + res.status + ')');
+    const csv = await res.text();
+
+    // Parsear CSV
+    const lines = csv.trim().split('\n');
+    // Cabecera: Date, SPY, XLE, XLB, XLI, XLY, XLP, XLV, XLF, XLC, XLU, XLK, XLRE
+    const headers = lines[0].split(',').map(h => h.trim().replace(/"/g,''));
+    const spyIdx  = headers.indexOf('SPY');
+    if(spyIdx === -1) throw new Error('SPY column not found in sheet');
+
+    // Índices de cada sector
+    const sectorIdxs = SECTORS.map(s => ({
+      sector: s,
+      idx: headers.indexOf(s.ticker)
+    })).filter(s => s.idx !== -1);
+
+    // Leer filas
+    const rows = [];
+    for(let i=1; i<lines.length; i++) {
+      const parts = lines[i].split(',').map(p => p.trim().replace(/"/g,''));
+      if(parts.length < 2) continue;
+      const dateStr = parts[0];
+      const spy     = parseFloat(parts[spyIdx]);
+      if(!dateStr || isNaN(spy) || spy === 0) continue;
+      // Convertir fecha DD/MM/YYYY o YYYY-MM-DD a timestamp
+      let t;
+      if(dateStr.includes('/')) {
+        const [d, m, y] = dateStr.split('/');
+        t = Math.floor(new Date(`${y}-${m.padStart(2,'0')}-${d.padStart(2,'0')}`).getTime() / 1000);
+      } else {
+        t = Math.floor(new Date(dateStr).getTime() / 1000);
+      }
+      if(isNaN(t)) continue;
+      rows.push({ t, spy, parts });
+    }
+
+    if(rows.length < 5) throw new Error('Insufficient data in sheet');
+
+    // Construir chartData
+    chartData = sectorIdxs.map(({ sector, idx }) => ({
+      sector,
+      rs: rows.map(r => {
+        const v = parseFloat(r.parts[idx]);
+        if(isNaN(v) || v === 0) return null;
+        return { t: r.t, rs: (v / r.spy) * 100 };
+      }).filter(Boolean)
+    }));
+
+    status.textContent = `Updated ${new Date().toLocaleTimeString('en-GB')} · ${rows.length} weeks`;
+    processAndDraw();
+
+  } catch(e) {
+    status.textContent = '⚠ Error: ' + e.message;
+    console.error(e);
+  }
+  btn.disabled = false;
+}
+
+// ── Calcular RS-Ratio y Momentum (método JdK) ─
+function sma(arr, p) {
+  return arr.map((_, i) => {
+    if(i < p-1) return null;
+    let s = 0; for(let j=0; j<p; j++) s += arr[i-j];
+    return s/p;
+  });
+}
+
+// Normalización JdK: escala los valores alrededor de 100
+// usando solo la ventana reciente para que 100 = promedio actual de todos los sectores
+function processAndDraw() {
+  const rsPer = parseInt(rsSlider.value);
+
+  // Paso 1: calcular RS bruto suavizado para cada sector
+  const allSmoothed = chartData.map(({ sector, rs }) => {
+    const rsVals   = rs.map(d => d.rs);
+    const rsSmooth = sma(rsVals, rsPer);
+    return { sector, rs, rsSmooth };
+  });
+
+  // Paso 2: normalizar RS-Ratio cruzando todos los sectores en cada punto temporal
+  // Así 100 = la media de todos los sectores en ese momento (relativo entre sí)
+  const nPoints = Math.max(...allSmoothed.map(d => d.rs.length));
+
+  processed = allSmoothed.map(({ sector, rs, rsSmooth }) => {
+    // RS-Ratio: suavizado / media móvil de largo plazo * 100
+    // Esto centra en 100 de forma estable
+    const longPer  = rsPer * 3;
+    const rsLong   = sma(rs.map(d => d.rs), longPer);
+    const rsRatio  = rsSmooth.map((v, i) => {
+      if(v == null || rsLong[i] == null) return null;
+      return (v / rsLong[i]) * 100;
+    });
+
+    // RS-Momentum: SMA del RS-Ratio / su propia SMA larga * 100
+    const momShort = sma(rsRatio.filter(v => v != null), rsPer);
+    const momLong  = sma(rsRatio.filter(v => v != null), longPer);
+
+    // Reconstruir arrays alineados con los timestamps originales
+    const rsRatioClean = rsRatio.filter(v => v != null);
+    const momRatio = momShort.map((v, i) => {
+      if(v == null || momLong[i] == null) return null;
+      return (v / momLong[i]) * 100;
+    });
+
+    // Combinar con timestamps
+    const points = [];
+    let ri = 0;
+    for(let i = 0; i < rs.length; i++) {
+      if(rsRatio[i] == null) continue;
+      const mom = momRatio[ri] ?? null;
+      if(mom != null) {
+        points.push({ t: rs[i].t, x: rsRatio[i], y: mom });
+      }
+      ri++;
+    }
+    return { sector, points };
+  });
+
+  animateIn();
+}
+
+let processed = [];
+
+// ── Canvas ─────────────────────────────────────
+const canvas = document.getElementById('rrg');
+const ctx    = canvas.getContext('2d');
+const tooltip = document.getElementById('tooltip');
+
+function resize() {
+  const container = document.getElementById('chartContainer');
+  const w = container.clientWidth;
+  const h = Math.max(500, Math.min(680, w * 0.72));
+  canvas.width  = w;
+  canvas.height = h;
+  container.style.height = h + 'px';
+  draw();
+}
+window.addEventListener('resize', resize);
+
+// ── Dibujar ────────────────────────────────────
+const PAD = { top:40, right:40, bottom:50, left:55 };
+
+function toCanvas(x, y, xMin, xMax, yMin, yMax) {
+  const W = canvas.width  - PAD.left - PAD.right;
+  const H = canvas.height - PAD.top  - PAD.bottom;
+  return {
+    cx: PAD.left + (x - xMin) / (xMax - xMin) * W,
+    cy: PAD.top  + (1 - (y - yMin) / (yMax - yMin)) * H
+  };
+}
+
+function draw(progress=1) {
+  if(!canvas.width) return;
+  const W = canvas.width, H = canvas.height;
+  const PW = W - PAD.left - PAD.right;
+  const PH = H - PAD.top  - PAD.bottom;
+  const tail = parseInt(tailSlider.value);
+
+  // Recopilar rango
+  let allX=[], allY=[];
+  processed.forEach(({ points }) => {
+    const sub = points.slice(-tail-1);
+    sub.forEach(p => { allX.push(p.x); allY.push(p.y); });
+  });
+  if(!allX.length) { allX=[92,128]; allY=[93,118]; }
+
+  const padX = (Math.max(...allX)-Math.min(...allX)) * 0.12 || 5;
+  const padY = (Math.max(...allY)-Math.min(...allY)) * 0.12 || 5;
+  const xMin = Math.min(...allX) - padX;
+  const xMax = Math.max(...allX) + padX;
+  const yMin = Math.min(...allY) - padY;
+  const yMax = Math.max(...allY) + padY;
+
+  // Centro en 100
+  const cx100 = toCanvas(100,100,xMin,xMax,yMin,yMax);
+
+  ctx.clearRect(0,0,W,H);
+
+  // Cuadrantes
+  const quads = [
+    { x:PAD.left, y:PAD.top, w:cx100.cx-PAD.left, h:cx100.cy-PAD.top,           color:'rgba(220,235,250,0.7)', label:'IMPROVING', lx:PAD.left+10,    ly:PAD.top+18 },
+    { x:cx100.cx, y:PAD.top, w:W-PAD.right-cx100.cx, h:cx100.cy-PAD.top,        color:'rgba(220,245,220,0.7)', label:'LEADING',   lx:W-PAD.right-10, ly:PAD.top+18 },
+    { x:PAD.left, y:cx100.cy, w:cx100.cx-PAD.left, h:H-PAD.bottom-cx100.cy,     color:'rgba(250,220,220,0.7)', label:'LAGGING',   lx:PAD.left+10,    ly:H-PAD.bottom-8 },
+    { x:cx100.cx, y:cx100.cy, w:W-PAD.right-cx100.cx, h:H-PAD.bottom-cx100.cy, color:'rgba(255,248,200,0.7)', label:'WEAKENING', lx:W-PAD.right-10, ly:H-PAD.bottom-8 },
+  ];
+  quads.forEach((q,i) => {
+    ctx.fillStyle = q.color;
+    ctx.fillRect(q.x, q.y, q.w, q.h);
+    ctx.font = '700 11px Syne, sans-serif';
+    ctx.fillStyle = ['#2266aa','#227722','#aa2222','#aa8800'][i];
+    ctx.textAlign = i%2===0 ? 'left' : 'right';
+    ctx.fillText(q.label, q.lx, q.ly);
+  });
+
+  // Grid
+  ctx.strokeStyle = 'rgba(0,0,0,0.07)';
+  ctx.lineWidth = 1;
+  for(let gx=Math.ceil(xMin); gx<=xMax; gx+=2) {
+    const p = toCanvas(gx,yMin,xMin,xMax,yMin,yMax);
+    ctx.beginPath(); ctx.moveTo(p.cx, PAD.top); ctx.lineTo(p.cx, H-PAD.bottom); ctx.stroke();
+  }
+  for(let gy=Math.ceil(yMin); gy<=yMax; gy+=2) {
+    const p = toCanvas(xMin,gy,xMin,xMax,yMin,yMax);
+    ctx.beginPath(); ctx.moveTo(PAD.left, p.cy); ctx.lineTo(W-PAD.right, p.cy); ctx.stroke();
+  }
+
+  // Ejes centrales
+  ctx.strokeStyle = 'rgba(0,0,0,0.22)';
+  ctx.lineWidth = 1;
+  ctx.setLineDash([4,4]);
+  ctx.beginPath(); ctx.moveTo(cx100.cx, PAD.top); ctx.lineTo(cx100.cx, H-PAD.bottom); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(PAD.left, cx100.cy); ctx.lineTo(W-PAD.right, cx100.cy); ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Borde del área
+  ctx.strokeStyle = 'rgba(0,0,0,0.10)';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(PAD.left, PAD.top, PW, PH);
+
+  // Etiquetas de ejes
+  ctx.font = '500 10px JetBrains Mono, monospace';
+  ctx.fillStyle = '#7a90a4';
+  ctx.textAlign = 'center';
+  const xSteps = Math.round((xMax - xMin) / 2);
+  for(let i=0; i<=xSteps; i++) {
+    const v = xMin + i*2;
+    const p = toCanvas(v, yMin, xMin, xMax, yMin, yMax);
+    ctx.fillText(v.toFixed(0), p.cx, H-PAD.bottom+16);
+  }
+  ctx.textAlign = 'right';
+  const ySteps = Math.round((yMax - yMin) / 2);
+  for(let i=0; i<=ySteps; i++) {
+    const v = yMin + i*2;
+    const p = toCanvas(xMin, v, xMin, xMax, yMin, yMax);
+    ctx.fillText(v.toFixed(0), PAD.left-6, p.cy+4);
+  }
+
+  // Títulos de ejes
+  ctx.font = '600 11px JetBrains Mono, monospace';
+  ctx.fillStyle = '#4a6a8a';
+  ctx.textAlign = 'center';
+  ctx.fillText('Relative Strength (RS-Ratio)', W/2, H-6);
+  ctx.save();
+  ctx.translate(14, H/2);
+  ctx.rotate(-Math.PI/2);
+  ctx.fillText('RS Momentum', 0, 0);
+  ctx.restore();
+
+  // Dibujar sectores
+  processed.forEach(({ sector, points }) => {
+    if(hidden.has(sector.ticker)) return;
+    const sub = points.slice(-tail-1);
+    if(sub.length < 2) return;
+
+    const drawCount = Math.max(2, Math.round(sub.length * progress));
+    const drawPts   = sub.slice(0, drawCount);
+
+    // Cola
+    for(let i=1; i<drawPts.length; i++) {
+      const p0 = toCanvas(drawPts[i-1].x, drawPts[i-1].y, xMin, xMax, yMin, yMax);
+      const p1 = toCanvas(drawPts[i].x,   drawPts[i].y,   xMin, xMax, yMin, yMax);
+      const alpha = 0.15 + (i / drawPts.length) * 0.75;
+      ctx.strokeStyle = sector.color + Math.round(alpha*255).toString(16).padStart(2,'0');
+      ctx.lineWidth = 1.5 + (i/drawPts.length) * 1.5;
+      ctx.lineJoin = 'round';
+      ctx.beginPath(); ctx.moveTo(p0.cx, p0.cy); ctx.lineTo(p1.cx, p1.cy); ctx.stroke();
+    }
+
+    // Puntos históricos pequeños
+    for(let i=0; i<drawPts.length-1; i++) {
+      const p = toCanvas(drawPts[i].x, drawPts[i].y, xMin, xMax, yMin, yMax);
+      const alpha = 0.2 + (i / drawPts.length) * 0.5;
+      ctx.fillStyle = sector.color + Math.round(alpha*255).toString(16).padStart(2,'0');
+      ctx.beginPath(); ctx.arc(p.cx, p.cy, 3, 0, Math.PI*2); ctx.fill();
+    }
+
+    // Punto actual (grande)
+    if(progress >= 1) {
+      const last = drawPts[drawPts.length-1];
+      const p = toCanvas(last.x, last.y, xMin, xMax, yMin, yMax);
+
+      // Glow
+      const grd = ctx.createRadialGradient(p.cx, p.cy, 0, p.cx, p.cy, 18);
+      grd.addColorStop(0, sector.color + '55');
+      grd.addColorStop(1, sector.color + '00');
+      ctx.fillStyle = grd;
+      ctx.beginPath(); ctx.arc(p.cx, p.cy, 18, 0, Math.PI*2); ctx.fill();
+
+      ctx.fillStyle = sector.color;
+      ctx.beginPath(); ctx.arc(p.cx, p.cy, 7, 0, Math.PI*2); ctx.fill();
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      // Etiqueta
+      ctx.font = '700 11px Syne, sans-serif';
+      ctx.fillStyle = sector.color;
+      ctx.textAlign = 'left';
+      ctx.fillText(sector.ticker, p.cx + 10, p.cy + 4);
+    }
+  });
+}
+
+// ── Animación entrada ─────────────────────────
+function animateIn() {
+  if(animating) cancelAnimationFrame(animFrame);
+  animating = true;
+  const dur = 900, start = performance.now();
+  function step(now) {
+    const p = Math.min((now-start)/dur, 1);
+    const ease = 1 - Math.pow(1-p, 3);
+    draw(ease);
+    if(p < 1) animFrame = requestAnimationFrame(step);
+    else { animating = false; draw(1); }
+  }
+  animFrame = requestAnimationFrame(step);
+}
+
+// ── Tooltip hover ─────────────────────────────
+canvas.addEventListener('mousemove', (e) => {
+  if(!processed.length) return;
+  const rect = canvas.getBoundingClientRect();
+  const mx = e.clientX - rect.left;
+  const my = e.clientY - rect.top;
+  const tail = parseInt(tailSlider.value);
+
+  let allX=[], allY=[];
+  processed.forEach(({ points }) => points.slice(-tail-1).forEach(p => { allX.push(p.x); allY.push(p.y); }));
+  if(!allX.length) return;
+  const padX = (Math.max(...allX)-Math.min(...allX))*0.12||5;
+  const padY = (Math.max(...allY)-Math.min(...allY))*0.12||5;
+  const xMin = Math.min(...allX)-padX, xMax = Math.max(...allX)+padX;
+  const yMin = Math.min(...allY)-padY, yMax = Math.max(...allY)+padY;
+
+  let closest = null, minDist = 20;
+  processed.forEach(({ sector, points }) => {
+    if(hidden.has(sector.ticker)) return;
+    const sub = points.slice(-tail-1);
+    if(!sub.length) return;
+    const last = sub[sub.length-1];
+    const p = toCanvas(last.x, last.y, xMin, xMax, yMin, yMax);
+    const d = Math.hypot(p.cx-mx, p.cy-my);
+    if(d < minDist) { minDist = d; closest = { sector, point: last }; }
+  });
+
+  if(closest) {
+    const q = closest.point.x >= 100
+      ? (closest.point.y >= 100 ? 'LEADING 🟢' : 'WEAKENING 🟡')
+      : (closest.point.y >= 100 ? 'IMPROVING 🔵' : 'LAGGING 🔴');
+    tooltip.style.display = 'block';
+    tooltip.style.left = (e.clientX + 14) + 'px';
+    tooltip.style.top  = (e.clientY - 10) + 'px';
+    tooltip.innerHTML  = `<span style="color:${closest.sector.color};font-weight:700">${closest.sector.ticker}</span> · ${closest.sector.name}<br>
+      RS-Ratio: <b>${closest.point.x.toFixed(2)}</b><br>
+      Momentum: <b>${closest.point.y.toFixed(2)}</b><br>
+      Quadrant: <b>${q}</b>`;
+  } else {
+    tooltip.style.display = 'none';
+  }
+});
+canvas.addEventListener('mouseleave', () => tooltip.style.display='none');
+
+// ── Init ───────────────────────────────────────
+resize();
+loadData();
+</script>
+</body>
+</html>
